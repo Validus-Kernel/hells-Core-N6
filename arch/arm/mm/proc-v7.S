@@ -26,7 +26,7 @@
 #endif
 
 ENTRY(cpu_v7_proc_init)
-	mov	pc, lr
+	ret	lr
 ENDPROC(cpu_v7_proc_init)
 
 ENTRY(cpu_v7_proc_fin)
@@ -34,7 +34,7 @@ ENTRY(cpu_v7_proc_fin)
 	bic	r0, r0, #0x1000			@ ...i............
 	bic	r0, r0, #0x0006			@ .............ca.
 	mcr	p15, 0, r0, c1, c0, 0		@ disable caches
-	mov	pc, lr
+	ret	lr
 ENDPROC(cpu_v7_proc_fin)
 
 /*
@@ -71,20 +71,20 @@ ENDPROC(cpu_v7_reset)
 ENTRY(cpu_v7_do_idle)
 	dsb					@ WFI may enter a low-power mode
 	wfi
-	mov	pc, lr
+	ret	lr
 ENDPROC(cpu_v7_do_idle)
 
 ENTRY(cpu_v7_dcache_clean_area)
 	ALT_SMP(W(nop))			@ MP extensions imply L1 PTW
 	ALT_UP_B(1f)
-	mov	pc, lr
+	ret	lr
 1:	dcache_line_size r2, r3
 2:	mcr	p15, 0, r0, c7, c10, 1		@ clean D entry
 	add	r0, r0, r2
 	subs	r1, r1, r2
 	bhi	2b
 	dsb
-	mov	pc, lr
+	ret	lr
 ENDPROC(cpu_v7_dcache_clean_area)
 
 	string	cpu_v7_name, "ARMv7 Processor"
@@ -159,7 +159,7 @@ ENTRY(cpu_pj4b_do_idle)
 	dsb					@ WFI may enter a low-power mode
 	wfi
 	dsb					@barrier
-	mov	pc, lr
+	ret	lr
 ENDPROC(cpu_pj4b_do_idle)
 #else
 	globl_equ	cpu_pj4b_do_idle,  	cpu_v7_do_idle
@@ -261,11 +261,18 @@ __v7_pj4b_setup:
 
 __v7_setup:
 	adr	r12, __v7_setup_stack		@ the local stack
+	mrc	p15, 0, r0, c0, c0, 0		@ read main ID register
+	ubfx	r10, r0, #4, #28
+	ldr	r6, =0x00f0000
+	bic	r10, r10, r6
+	ldr	r6, =0x410fc0f			@ ARM cortex A15
+	teq	r10, r6
+	biceq	r10, r10, r10			@ clear r10 if it's A15
+	beq	4f
 	stmia	r12, {r0-r5, r7, r9, r11, lr}
 	bl      v7_flush_dcache_louis
 	ldmia	r12, {r0-r5, r7, r9, r11, lr}
 
-	mrc	p15, 0, r0, c0, c0, 0		@ read main ID register
 	and	r10, r0, #0xff000000		@ ARM?
 	teq	r10, #0x41000000
 	bne	3f
@@ -337,6 +344,7 @@ __v7_setup:
 
 3:	mov	r10, #0
 	mcr	p15, 0, r10, c7, c5, 0		@ I+BTB cache invalidate
+4:
 #ifdef CONFIG_MMU
 	mcr	p15, 0, r10, c8, c7, 0		@ invalidate I + D TLBs
 	v7_ttb_setup r10, r4, r8, r5		@ TTBCR, TTBRx setup
@@ -396,7 +404,7 @@ __v7_setup:
 	bic	r0, r0, r5			@ clear bits them
 	orr	r0, r0, r6			@ set them
  THUMB(	orr	r0, r0, #1 << 30	)	@ Thumb exceptions
-	mov	pc, lr				@ return to head.S:__ret
+	ret	lr				@ return to head.S:__ret
 ENDPROC(__v7_setup)
 
 	.align	2
